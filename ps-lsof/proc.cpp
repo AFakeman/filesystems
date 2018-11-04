@@ -99,11 +99,3 @@ std::string get_time(const std::string &pid) {
   unsigned long long seconds = jiffies / kHZ;
   return std::to_string(seconds / 60) + ':' + std::to_string(seconds % 60);
 }
-
-int main() {
-  auto pids = get_pids();
-  std::cout << "PID\tUSER\tTIME\tCOMMAND" << std::endl;
-  for (auto pid : pids) {
-    std::cout << pid << '\t' << get_username(pid) << '\t' << get_time(pid) << '\t' << get_cmdline(pid) << std::endl;
-  }
-}
