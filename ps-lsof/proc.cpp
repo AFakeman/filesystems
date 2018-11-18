@@ -82,7 +82,10 @@ std::string get_uid(const std::string &pid) {
     }
   }
   if (proc_stat.eof()) {
-    throw std::runtime_error("UID is not provided in /proc/<pid>/status");
+    char error_msg[1024];
+    snprintf(error_msg, sizeof(error_msg),
+             "UID is not provided in /proc/%s/status", pid.c_str());
+    throw std::runtime_error(std::string(error_msg));
   }
   // We use the real uid
   size_t first_delim = uid_line.find("\t");
@@ -135,10 +138,11 @@ std::vector<std::string> get_open_files(const std::string &pid) {
   char filename[1024];
   // All symlinks start with /proc/<pid>/fd/
   strncpy(filename, fd_dir.c_str(), sizeof(filename));
+  filename[sizeof(filename) - 1] = 0;
   for (auto fd : fds) {
     // 1 for null, and don't forget the starting part
     strncat(filename, fd.c_str(), sizeof(filename) - 1 - fd_dir.size());
-    int read_len = readlink(filename, link_dest, sizeof(link_dest));
+    int read_len = readlink(filename, link_dest, sizeof(link_dest) - 1);
     if (read_len != -1) {
       link_dest[read_len] = 0;
       result.push_back(link_dest);
