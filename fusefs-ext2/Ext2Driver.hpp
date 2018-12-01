@@ -5,6 +5,7 @@
 #include <optional>
 
 #include <ext2fs/ext2_fs.h>
+#include <sys/stat.h>
 
 struct OpenFile {
   size_t offset{0};
@@ -25,10 +26,11 @@ public:
 
   void Initialize();
 
-  int Open(const char *path);
-  int Read(uint16_t fd, void *buf, size_t len, off_t off);
+  void Getattr(const char *path, struct stat *stat);
+  uint64_t Open(const char *path);
+  int Read(uint64_t fd, void *buf, size_t len, off_t off);
   void Close(uint64_t fd);
-  int Opendir(const char *path);
+  uint64_t Opendir(const char *path);
   std::optional<std::string> Readdir(uint64_t fd);
   void Releasedir(uint64_t fd);
 

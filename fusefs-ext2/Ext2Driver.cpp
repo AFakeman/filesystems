@@ -133,6 +133,21 @@ void Ext2Driver::Initialize() {
   block_size_ = 1024 << sb_.s_log_block_size;
 }
 
+void Ext2Driver::Getattr(const char *path, struct stat *stat) {
+  size_t inode_idx = GetInodeIdxByPath(path);
+  ext2_inode inode;
+  GetInodeByNumber(inode_idx, &inode);
+  stat->st_mode = inode.i_mode;
+  stat->st_nlink = inode.i_links_count;
+  stat->st_uid = inode.i_uid;
+  stat->st_gid = inode.i_gid;
+  stat->st_size = inode.i_size;
+  stat->st_atime = inode.i_atime;
+  stat->st_ctime = inode.i_ctime;
+  stat->st_mtime = inode.i_mtime;
+  stat->st_blocks = inode.i_blocks;
+}
+
 uint64_t Ext2Driver::Open(const char *path) {
   size_t inode_idx = GetInodeIdxByPath(path);
   for (int i = 0; i < kMaxFD; ++i) {
