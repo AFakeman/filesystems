@@ -5,7 +5,7 @@
 #include "prove.hpp"
 #include "Ext2Driver.hpp"
 
-const char kTestFile[] = "ext2.img";
+const char kTestFile[] = "simple_image.img";
 
 PROVE_CASE(TestInit) {
   Ext2Driver driver(kTestFile);
