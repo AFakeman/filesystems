@@ -12,7 +12,7 @@ build_test: test.cpp Ext2Driver.cpp Ext2Driver.hpp prove.hpp
 ext2.img:
 	docker run --rm -it -v ${PWD}:/var/pwd ubuntu sh -c \
 	"apt-get update && apt-get install -y genext2fs && \
-	genext2fs -b 10 -d /var/pwd/to_volume /var/pwd/ext2.img"
+	genext2fs -b 100 -d /var/pwd/to_volume /var/pwd/ext2.img"
 
 docker_build: Dockerfile main.cpp
 	docker build . -t filesystems:ext2fuse
