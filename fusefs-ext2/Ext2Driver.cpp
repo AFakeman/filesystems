@@ -148,6 +148,12 @@ void Ext2Driver::Getattr(const char *path, struct stat *stat) {
   stat->st_blocks = inode.i_blocks;
 }
 
+int Ext2Driver::Readlink(const char *path, char *buf, size_t len) {
+    size_t inode_idx = GetInodeIdxByPath(path);
+    OpenFile file = OpenFileByInodeNumber(inode_idx);
+    return ReadFile(file, buf, len, 0);
+}
+
 uint64_t Ext2Driver::Open(const char *path) {
   size_t inode_idx = GetInodeIdxByPath(path);
   for (int i = 0; i < kMaxFD; ++i) {
@@ -162,42 +168,45 @@ uint64_t Ext2Driver::Open(const char *path) {
   throw std::system_error(ENFILE, std::generic_category());
 }
 
-int Ext2Driver::Read(uint64_t fd, void *raw_buf, size_t len, off_t off) {
+int Ext2Driver::Read(uint64_t fd, char *buf, size_t len, off_t off) {
   auto it = open_files_.find(fd);
   if (it == open_files_.end()) {
     throw std::system_error(EBADF, std::generic_category());
   }
-  if (off >= it->second.inode.i_size) {
+  return ReadFile(it->second, buf, len, off);
+}
+
+int Ext2Driver::ReadFile(OpenFile &file, char *buf, size_t len, off_t off) {
+  if (off >= file.inode.i_size) {
     return 0;
   }
-  if (off + len >= it->second.inode.i_size) {
-    len = it->second.inode.i_size - off;
+  if (off + len >= file.inode.i_size) {
+    len = file.inode.i_size - off;
   }
   size_t block_start = off / block_size_;
   size_t block_end = (off + len - 1) / block_size_;
   size_t block_start_offset = off % block_size_;
-  const char* src_buf = static_cast<char*>(raw_buf);
-  char *buf = static_cast<char*>(raw_buf);
-  ReadFileBlock(it->second, block_start);
+  const char* src_buf = buf;
+  ReadFileBlock(file, block_start);
   if (block_start == block_end) {
-    memcpy(buf, it->second.FileData.data() + block_start_offset, len);
+    memcpy(buf, file.FileData.data() + block_start_offset, len);
     return len;
   }
   size_t copy_length = block_size_ - block_start_offset;
-  memcpy(buf, it->second.FileData.data() + block_start_offset, copy_length);
+  memcpy(buf, file.FileData.data() + block_start_offset, copy_length);
   buf += copy_length;
   len -= copy_length;
   for (size_t block = block_start + 1; block < block_end; ++block) {
     copy_length = block_size_;
-    ReadFileBlock(it->second, block);
-    memcpy(buf, it->second.FileData.data(), copy_length);
+    ReadFileBlock(file, block);
+    memcpy(buf, file.FileData.data(), copy_length);
     buf += copy_length;
     len -= copy_length;
   }
-  ReadFileBlock(it->second, block_end);
-  memcpy(buf, it->second.FileData.data(), len);
-  buf += copy_length;
-  len -= copy_length;
+  ReadFileBlock(file, block_end);
+  memcpy(buf, file.FileData.data(), len);
+  buf += len;
+  len -= len;
   return buf - src_buf;
 }
 
@@ -222,7 +231,10 @@ std::optional<std::string> Ext2Driver::Readdir(uint64_t fd) {
   if (it == open_files_.end()) {
     throw std::system_error(EINVAL, std::generic_category());
   }
-  auto &file = it->second;
+  return ReaddirFile(it->second);
+}
+
+std::optional<std::string> Ext2Driver::ReaddirFile(OpenFile &file) {
   if (file.file_block_idx * block_size_ >= file.inode.i_size) {
     return {};
   }
@@ -448,7 +460,11 @@ size_t Ext2Driver::GetInodeIdxByPath(const char *path) {
     }
     dir = OpenFileByInodeNumber(dir_inode);
   }
-  return FindInDirectory(destination.c_str(), dir);
+  size_t inode_idx = FindInDirectory(destination.c_str(), dir);
+  if (inode_idx == 0) {
+    throw std::system_error(ENOENT, std::generic_category());
+  }
+  return inode_idx;
 }
 
 OpenFile Ext2Driver::OpenFileByInodeNumber(size_t inode_idx) {

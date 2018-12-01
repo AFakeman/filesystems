@@ -28,10 +28,11 @@ public:
 
   void Getattr(const char *path, struct stat *stat);
   uint64_t Open(const char *path);
-  int Read(uint64_t fd, void *buf, size_t len, off_t off);
+  int Read(uint64_t fd, char *buf, size_t len, off_t off);
   void Close(uint64_t fd);
   uint64_t Opendir(const char *path);
   std::optional<std::string> Readdir(uint64_t fd);
+  int Readlink(const char *path, char *buf, size_t len);
   void Releasedir(uint64_t fd);
 
 private:
@@ -54,6 +55,8 @@ private:
   bool IsDoublyIndirectBlock(size_t file_block_idx);
   bool IsTriplyIndirectBlock(size_t file_block_idx);
 
+  int ReadFile(OpenFile &file, char *buf, size_t len, off_t off);
+  std::optional<std::string> ReaddirFile(OpenFile &file);
   /**
    * These functions generate the path to the block. If the file_block_idx
    * is not actually of the required redirection level, an impossible value

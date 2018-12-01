@@ -38,10 +38,7 @@ int myfs_getattr(const char *path, struct stat *stbuf) {
 int myfs_readlink(const char *path, char *buf, size_t len) {
   Ext2Driver *cast = private_data();
   try {
-    uint64_t fd = cast->Open(path);
-    int bytes_read = cast->Read(fd, buf, len, 0);
-    cast->Close(fd);
-    return bytes_read;
+    return cast->Readlink(path, buf, len);
   } catch (const std::system_error &err) {
     return -err.code().value();
   }
