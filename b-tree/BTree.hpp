@@ -47,16 +47,19 @@ private:
 
   template <class DType>
   std::optional<std::vector<BaseNode<DType>>>
-  InsertMaybeSplit(std::vector<BTree<T>::BaseNode<DType>> &vec, const std::string &key, DType &&value);
+  InsertMaybeSplit(std::vector<BTree<T>::BaseNode<DType>> &vec,
+                   const std::string &key, DType &&value);
 
-  DataType *FindInNode(NodeBlock *node, const std::string &key, const T &value);
-  DataType *FindInDataNode(DataBlock *node, const std::string &key, const T &value);
+  DataType *Find(const std::string &key);
+  DataType *FindInNode(NodeBlock *node, const std::string &key);
+  DataType *FindInDataNode(DataBlock *node, const std::string &key);
 
   BlockPointer root_;
 };
 
 template <typename T>
-BTree<T>::BTree() : root_(std::make_unique<DataBlock>(DataBlock{{{"", {}}}, nullptr})){}
+BTree<T>::BTree()
+    : root_(std::make_unique<DataBlock>(DataBlock{{{"", {}}}, nullptr})) {}
 
 template <typename T>
 void BTree<T>::Insert(const std::string &key, const T &value) {
@@ -66,41 +69,90 @@ void BTree<T>::Insert(const std::string &key, const T &value) {
     if (!split) {
       return;
     }
-    root_ = std::make_unique<NodeBlock>(NodeBlock{std::move(split.value()), nullptr});
+    root_ = std::make_unique<NodeBlock>(
+        NodeBlock{std::move(split.value()), nullptr});
   } else if (std::holds_alternative<std::unique_ptr<DataBlock>>(root_)) {
     DataBlock *child = std::get<std::unique_ptr<DataBlock>>(root_).get();
     auto split = InsertInDataNode(child, key, value);
     if (!split) {
       return;
     }
-    root_ = std::make_unique<DataBlock>(DataBlock{std::move(split.value()), nullptr});
+    root_ = std::make_unique<DataBlock>(
+        DataBlock{std::move(split.value()), nullptr});
   }
 }
 
-template <typename T>
-bool BTree<T>::Contains(const std::string &key) {
+template <typename T> bool BTree<T>::Contains(const std::string &key) {
+  DataType *result = Find(key);
+  return result && *result;
+}
 
+template <typename T> void BTree<T>::Pop(const std::string &key) {
+  DataType *item = Find(key);
+  if (item) {
+    item->reset();
+  }
+}
+
+
+template <typename T>
+typename BTree<T>::DataType *BTree<T>::Find(const std::string &key) {
+  DataType *result;
+  if (std::holds_alternative<std::unique_ptr<NodeBlock>>(root_)) {
+    NodeBlock *child = std::get<std::unique_ptr<NodeBlock>>(root_).get();
+    result = FindInNode(child, key);
+  } else if (std::holds_alternative<std::unique_ptr<DataBlock>>(root_)) {
+    DataBlock *child = std::get<std::unique_ptr<DataBlock>>(root_).get();
+    result = FindInDataNode(child, key);
+  }
+  return result;
 }
 
 template <typename T>
-typename BTree<T>::DataType *
-BTree<T>::FindInNode(NodeBlock *node, const std::string &key, const T &value) {
+typename BTree<T>::DataType *BTree<T>::FindInNode(NodeBlock *node,
+                                                  const std::string &key) {
   auto iter = std::upper_bound(
       node->nodes.begin(), node->nodes.end(), key,
       [](const std::string &lhs, const Node &rhs) { return lhs < rhs.key; });
+
+  iter--;
+
+  if (std::holds_alternative<std::unique_ptr<NodeBlock>>(iter->value)) {
+    NodeBlock *child = std::get<std::unique_ptr<NodeBlock>>(iter->value).get();
+    return FindInNode(child, key);
+  } else if (std::holds_alternative<std::unique_ptr<DataBlock>>(iter->value)) {
+    DataBlock *child = std::get<std::unique_ptr<DataBlock>>(iter->value).get();
+    return FindInDataNode(child, key);
+  }
+  return nullptr;
 }
 
 template <typename T>
-typename BTree<T>::DataType *BTree<T>::FindInDataNode(DataBlock *node, const std::string &key, const T &value) {
+typename BTree<T>::DataType *BTree<T>::FindInDataNode(DataBlock *node,
+                                                      const std::string &key) {
+  auto iter = std::upper_bound(node->nodes.begin(), node->nodes.end(), key,
+                               [](const std::string &lhs, const DataNode &rhs) {
+                                 return lhs < rhs.key;
+                               });
+
+  iter--;
+  if (iter->key == key) {
+    return &(iter->value);
+  } else {
+    return nullptr;
+  }
 }
 
 template <typename T>
 template <class DType>
 std::optional<std::vector<typename BTree<T>::template BaseNode<DType>>>
-BTree<T>::InsertMaybeSplit(std::vector<BTree<T>::BaseNode<DType>> &vec, const std::string &key, DType &&value) {
-  auto iter = std::lower_bound(
-      vec.begin(), vec.end(), key,
-      [](const BaseNode<DType> &lhs, const std::string &rhs) { return lhs.key < rhs; });
+BTree<T>::InsertMaybeSplit(std::vector<BTree<T>::BaseNode<DType>> &vec,
+                           const std::string &key, DType &&value) {
+  auto iter =
+      std::lower_bound(vec.begin(), vec.end(), key,
+                       [](const BaseNode<DType> &lhs, const std::string &rhs) {
+                         return lhs.key < rhs;
+                       });
 
   if (iter != vec.end() && iter->key == key) {
     iter->value = std::move(value);
@@ -114,7 +166,7 @@ BTree<T>::InsertMaybeSplit(std::vector<BTree<T>::BaseNode<DType>> &vec, const st
 
   std::vector<BTree<T>::BaseNode<DType>> rest;
   rest.insert(rest.end(), std::make_move_iterator(vec.begin() + vec.size() / 2),
-                          std::make_move_iterator(vec.end()));
+              std::make_move_iterator(vec.end()));
   vec.resize(vec.size() / 2);
   return rest;
 }
