@@ -1,8 +1,10 @@
 #include <algorithm>
+#include <exception>
 #include <iostream>
 #include <memory>
 #include <optional>
 #include <string>
+#include <type_traits>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -12,7 +14,6 @@ public:
   BTree();
   void Insert(const std::string &key, const T &value);
   T &Get(const std::string &key);
-  const T &Get(const std::string &key) const;
   void Pop(const std::string &key);
   bool Contains(const std::string &key);
 
@@ -25,8 +26,9 @@ private:
   };
 
   template <class DataType> struct BaseBlock {
-    std::vector<BaseNode<DataType>> nodes;
-    std::unique_ptr<BaseBlock<DataType>> next;
+    using NodeType = BaseNode<DataType>;
+    std::vector<NodeType> nodes;
+    std::unique_ptr<NodeType> next;
   };
 
   typedef std::optional<T> DataType;
@@ -43,7 +45,7 @@ private:
   InsertInNode(NodeBlock *node, const std::string &key, const T &value);
 
   std::optional<std::vector<DataNode>>
-  InsertInDataNode(DataBlock *node, const std::string &key, const T &value);
+  InsertInNode(DataBlock *node, const std::string &key, const T &value);
 
   template <class DType>
   std::optional<std::vector<BaseNode<DType>>>
@@ -63,23 +65,33 @@ BTree<T>::BTree()
 
 template <typename T>
 void BTree<T>::Insert(const std::string &key, const T &value) {
-  if (std::holds_alternative<std::unique_ptr<NodeBlock>>(root_)) {
-    NodeBlock *child = std::get<std::unique_ptr<NodeBlock>>(root_).get();
-    auto split = InsertInNode(child, key, value);
+  auto lambda = [this, key, value](auto &root) {
+    auto *cur_root = root.get();
+    auto split = InsertInNode(cur_root, key, value);
     if (!split) {
       return;
     }
-    root_ = std::make_unique<NodeBlock>(
-        NodeBlock{std::move(split.value()), nullptr});
-  } else if (std::holds_alternative<std::unique_ptr<DataBlock>>(root_)) {
-    DataBlock *child = std::get<std::unique_ptr<DataBlock>>(root_).get();
-    auto split = InsertInDataNode(child, key, value);
-    if (!split) {
-      return;
+    std::cout << "Splitting for key " << key << std::endl;
+    // Current root will become the child
+    auto new_root = std::make_unique<NodeBlock>();
+    BlockPointer split_block;
+    std::string split_key = split.value()[0].key;
+    if constexpr (std::is_same<DataBlock *, decltype(cur_root)>::value) {
+      static_assert(std::is_same<std::optional<std::vector<DataNode>>, decltype(split)>::value);
+      split_block = std::make_unique<DataBlock>(
+          DataBlock{std::move(split.value()), nullptr});
+    } else if (std::is_same<NodeBlock *, decltype(cur_root)>::value) {
+      static_assert(std::is_same<std::optional<std::vector<Node>>, decltype(split)>::value);
+      split_block = std::make_unique<NodeBlock>(
+          NodeBlock{std::move(split.value()), nullptr});
     }
-    root_ = std::make_unique<DataBlock>(
-        DataBlock{std::move(split.value()), nullptr});
-  }
+    // No split will be done as the new root has only half of the nodes.
+    InsertMaybeSplit(new_root->nodes, cur_root->nodes[0].key,
+        {std::move(root)});
+    InsertMaybeSplit(new_root->nodes, split_key, {std::move(split_block)});
+    root_ = std::move(new_root);
+  };
+  std::visit(lambda, root_);
 }
 
 template <typename T> bool BTree<T>::Contains(const std::string &key) {
@@ -94,6 +106,14 @@ template <typename T> void BTree<T>::Pop(const std::string &key) {
   }
 }
 
+template <typename T> T &BTree<T>::Get(const std::string &key) {
+  DataType *item = Find(key);
+  if (item) {
+    return item->value();
+  } else {
+    throw std::runtime_error("No such element");
+  }
+}
 
 template <typename T>
 typename BTree<T>::DataType *BTree<T>::Find(const std::string &key) {
@@ -194,7 +214,7 @@ BTree<T>::InsertInNode(NodeBlock *node, const std::string &key,
     child_ptr = std::unique_ptr<NodeBlock>(new_block);
   } else if (std::holds_alternative<std::unique_ptr<DataBlock>>(iter->value)) {
     DataBlock *child = std::get<std::unique_ptr<DataBlock>>(iter->value).get();
-    auto split = InsertInDataNode(child, key, value);
+    auto split = InsertInNode(child, key, value);
     if (!split) {
       return {};
     }
@@ -207,7 +227,7 @@ BTree<T>::InsertInNode(NodeBlock *node, const std::string &key,
 
 template <typename T>
 std::optional<std::vector<typename BTree<T>::DataNode>>
-BTree<T>::InsertInDataNode(DataBlock *node, const std::string &key,
-                           const T &value) {
+BTree<T>::InsertInNode(DataBlock *node, const std::string &key,
+                       const T &value) {
   return InsertMaybeSplit(node->nodes, key, {value});
 }
