@@ -14,5 +14,6 @@ int main() {
     assert(tree.Contains(std::to_string(i)));
     assert(tree.Get(std::to_string(i)) == i);
   }
+  tree.PrintLeaves();
   return 0;
 }
