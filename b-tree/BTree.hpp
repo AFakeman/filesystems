@@ -54,7 +54,7 @@ private:
 
   DataType *Find(const std::string &key);
   DataType *FindInNode(NodeBlock *node, const std::string &key);
-  DataType *FindInDataNode(DataBlock *node, const std::string &key);
+  DataType *FindInNode(DataBlock *node, const std::string &key);
 
   BlockPointer root_;
 };
@@ -67,6 +67,7 @@ template <typename T>
 void BTree<T>::Insert(const std::string &key, const T &value) {
   auto lambda = [this, key, value](auto &root) {
     auto *cur_root = root.get();
+    using BlockType = typename std::remove_reference<decltype(*cur_root)>::type;
     auto split = InsertInNode(cur_root, key, value);
     if (!split) {
       return;
@@ -76,18 +77,11 @@ void BTree<T>::Insert(const std::string &key, const T &value) {
     auto new_root = std::make_unique<NodeBlock>();
     BlockPointer split_block;
     std::string split_key = split.value()[0].key;
-    if constexpr (std::is_same<DataBlock *, decltype(cur_root)>::value) {
-      static_assert(std::is_same<std::optional<std::vector<DataNode>>, decltype(split)>::value);
-      split_block = std::make_unique<DataBlock>(
-          DataBlock{std::move(split.value()), nullptr});
-    } else if (std::is_same<NodeBlock *, decltype(cur_root)>::value) {
-      static_assert(std::is_same<std::optional<std::vector<Node>>, decltype(split)>::value);
-      split_block = std::make_unique<NodeBlock>(
-          NodeBlock{std::move(split.value()), nullptr});
-    }
+    split_block = std::make_unique<BlockType>(
+        BlockType{std::move(split.value()), nullptr});
     // No split will be done as the new root has only half of the nodes.
     InsertMaybeSplit(new_root->nodes, cur_root->nodes[0].key,
-        {std::move(root)});
+                     {std::move(root)});
     InsertMaybeSplit(new_root->nodes, split_key, {std::move(split_block)});
     root_ = std::move(new_root);
   };
@@ -117,15 +111,12 @@ template <typename T> T &BTree<T>::Get(const std::string &key) {
 
 template <typename T>
 typename BTree<T>::DataType *BTree<T>::Find(const std::string &key) {
-  DataType *result;
-  if (std::holds_alternative<std::unique_ptr<NodeBlock>>(root_)) {
-    NodeBlock *child = std::get<std::unique_ptr<NodeBlock>>(root_).get();
-    result = FindInNode(child, key);
-  } else if (std::holds_alternative<std::unique_ptr<DataBlock>>(root_)) {
-    DataBlock *child = std::get<std::unique_ptr<DataBlock>>(root_).get();
-    result = FindInDataNode(child, key);
-  }
-  return result;
+
+  auto lambda = [this, key] (auto &root) -> DataType* {
+    return FindInNode(root.get(), key);
+  };
+
+  return std::visit(lambda, root_);
 }
 
 template <typename T>
@@ -137,18 +128,15 @@ typename BTree<T>::DataType *BTree<T>::FindInNode(NodeBlock *node,
 
   iter--;
 
-  if (std::holds_alternative<std::unique_ptr<NodeBlock>>(iter->value)) {
-    NodeBlock *child = std::get<std::unique_ptr<NodeBlock>>(iter->value).get();
-    return FindInNode(child, key);
-  } else if (std::holds_alternative<std::unique_ptr<DataBlock>>(iter->value)) {
-    DataBlock *child = std::get<std::unique_ptr<DataBlock>>(iter->value).get();
-    return FindInDataNode(child, key);
-  }
-  return nullptr;
+  auto lambda = [this, key] (auto &child) -> DataType* {
+    return FindInNode(child.get(), key);
+  };
+
+  return std::visit(lambda, iter->value);
 }
 
 template <typename T>
-typename BTree<T>::DataType *BTree<T>::FindInDataNode(DataBlock *node,
+typename BTree<T>::DataType *BTree<T>::FindInNode(DataBlock *node,
                                                       const std::string &key) {
   auto iter = std::upper_bound(node->nodes.begin(), node->nodes.end(), key,
                                [](const std::string &lhs, const DataNode &rhs) {
@@ -203,26 +191,24 @@ BTree<T>::InsertInNode(NodeBlock *node, const std::string &key,
   iter--;
   BlockPointer child_ptr;
   std::string new_key;
-  if (std::holds_alternative<std::unique_ptr<NodeBlock>>(iter->value)) {
-    NodeBlock *child = std::get<std::unique_ptr<NodeBlock>>(iter->value).get();
-    auto split = InsertInNode(child, key, value);
+
+  auto lambda = [this, key, value, &child_ptr, &new_key] (auto &child) -> bool {
+    using BlockType = typename std::remove_reference<decltype(*child.get())>::type;
+    auto split = InsertInNode(child.get(), key, value);
     if (!split) {
-      return {};
+      return false;
     }
     new_key = split.value()[0].key;
-    NodeBlock *new_block = new NodeBlock{std::move(split.value()), nullptr};
-    child_ptr = std::unique_ptr<NodeBlock>(new_block);
-  } else if (std::holds_alternative<std::unique_ptr<DataBlock>>(iter->value)) {
-    DataBlock *child = std::get<std::unique_ptr<DataBlock>>(iter->value).get();
-    auto split = InsertInNode(child, key, value);
-    if (!split) {
-      return {};
-    }
-    new_key = split.value()[0].key;
-    DataBlock *new_block = new DataBlock{std::move(split.value()), nullptr};
-    child_ptr = std::unique_ptr<DataBlock>(new_block);
+    child_ptr = std::make_unique<BlockType>(
+        BlockType{std::move(split.value()), nullptr});
+    return true;
+  };
+
+  if (std::visit(lambda, iter->value)) {
+    return InsertMaybeSplit(node->nodes, new_key, std::move(child_ptr));
+  } else {
+    return {};
   }
-  return InsertMaybeSplit(node->nodes, new_key, std::move(child_ptr));
 }
 
 template <typename T>
