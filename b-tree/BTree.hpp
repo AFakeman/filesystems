@@ -15,8 +15,10 @@ public:
   BTree();
   void Insert(const std::string &key, const T &value);
   T &Get(const std::string &key);
+  const T &Get(const std::string &key) const;
   void Pop(const std::string &key);
   bool Contains(const std::string &key);
+  bool Contains(const std::string &key) const;
 
   size_t size() const { return size_; };
 
@@ -146,8 +148,11 @@ private:
                    const std::string &key, DType &&value);
 
   DataType *Find(const std::string &key);
+  const DataType *Find(const std::string &key) const;
   DataType *FindInNode(NodeBlock *node, const std::string &key);
+  const DataType *FindInNode(NodeBlock *node, const std::string &key) const;
   DataType *FindInNode(DataBlock *node, const std::string &key);
+  const DataType *FindInNode(DataBlock *node, const std::string &key) const;
 
   static std::vector<std::unique_ptr<DataBlock>> GenerateLeafLevel(BTree &lhs,
                                                                    BTree &rhs);
@@ -199,6 +204,12 @@ bool BTree<T, block_size>::Contains(const std::string &key) {
 }
 
 template <typename T, size_t block_size>
+bool BTree<T, block_size>::Contains(const std::string &key) const {
+  const DataType *result = Find(key);
+  return result && *result;
+}
+
+template <typename T, size_t block_size>
 void BTree<T, block_size>::Pop(const std::string &key) {
   DataType *item = Find(key);
   if (item) {
@@ -218,9 +229,29 @@ T &BTree<T, block_size>::Get(const std::string &key) {
 }
 
 template <typename T, size_t block_size>
+const T &BTree<T, block_size>::Get(const std::string &key) const {
+  const DataType *item = Find(key);
+  if (item) {
+    return item->value();
+  } else {
+    throw std::runtime_error("No such element");
+  }
+}
+
+template <typename T, size_t block_size>
 typename BTree<T, block_size>::DataType *
 BTree<T, block_size>::Find(const std::string &key) {
   auto lambda = [this, key](auto &root) -> DataType * {
+    return FindInNode(root.get(), key);
+  };
+
+  return std::visit(lambda, root_);
+}
+
+template <typename T, size_t block_size>
+const typename BTree<T, block_size>::DataType *
+BTree<T, block_size>::Find(const std::string &key) const {
+  auto lambda = [this, key](auto &root) -> const DataType * {
     return FindInNode(root.get(), key);
   };
 
@@ -243,8 +274,39 @@ BTree<T, block_size>::FindInNode(NodeBlock *node, const std::string &key) {
 }
 
 template <typename T, size_t block_size>
+const typename BTree<T, block_size>::DataType *
+BTree<T, block_size>::FindInNode(NodeBlock *node, const std::string &key) const {
+  auto iter = std::upper_bound(
+      node->nodes.begin(), node->nodes.end(), key,
+      [](const std::string &lhs, const Node &rhs) { return lhs < rhs.key; });
+  --iter;
+
+  auto lambda = [this, key](auto &child) -> const DataType * {
+    return FindInNode(child.get(), key);
+  };
+
+  return std::visit(lambda, iter->value);
+}
+
+template <typename T, size_t block_size>
 typename BTree<T, block_size>::DataType *
 BTree<T, block_size>::FindInNode(DataBlock *node, const std::string &key) {
+  auto iter = std::upper_bound(node->nodes.begin(), node->nodes.end(), key,
+                               [](const std::string &lhs, const DataNode &rhs) {
+                                 return lhs < rhs.key;
+                               });
+  --iter;
+
+  if (iter->key == key) {
+    return &(iter->value);
+  } else {
+    return nullptr;
+  }
+}
+
+template <typename T, size_t block_size>
+const typename BTree<T, block_size>::DataType *
+BTree<T, block_size>::FindInNode(DataBlock *node, const std::string &key) const {
   auto iter = std::upper_bound(node->nodes.begin(), node->nodes.end(), key,
                                [](const std::string &lhs, const DataNode &rhs) {
                                  return lhs < rhs.key;
