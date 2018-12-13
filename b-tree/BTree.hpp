@@ -18,7 +18,7 @@ public:
   void Pop(const std::string &key);
   bool Contains(const std::string &key);
 
-  size_t size() const {return size_;};
+  size_t size() const { return size_; };
 
   void PrintLeaves();
 
@@ -27,17 +27,11 @@ public:
   template <class DataType> struct BaseNode {
     std::string key;
     DataType value;
-    bool operator==(const BaseNode &rhs) {
-      return key == rhs.key;
-    }
+    bool operator==(const BaseNode &rhs) { return key == rhs.key; }
 
-    bool operator<(const BaseNode &rhs) {
-      return key < rhs.key;
-    }
+    bool operator<(const BaseNode &rhs) { return key < rhs.key; }
 
-    bool operator>(const BaseNode &rhs) {
-      return key > rhs.key;
-    }
+    bool operator>(const BaseNode &rhs) { return key > rhs.key; }
   };
 
   template <class DataType> struct BaseBlock {
@@ -56,7 +50,8 @@ public:
   struct NodeBlock : public BaseBlock<BlockPointer> {};
   using Node = BaseNode<BlockPointer>;
 
-  template<class ValueType, class PointerType, class ReferenceType, class vector_iterator>
+  template <class ValueType, class PointerType, class ReferenceType,
+            class vector_iterator>
   class BaseIterator {
   public:
     using iterator_category = std::forward_iterator_tag;
@@ -76,9 +71,7 @@ public:
       return (bl_ == rhs.bl_) && ((it_ == rhs.it_) || (bl_ == nullptr));
     }
 
-    bool operator!=(const BaseIterator &rhs) const {
-      return !(*this == rhs);
-    }
+    bool operator!=(const BaseIterator &rhs) const { return !(*this == rhs); }
 
     BaseIterator &operator++() {
       Increment();
@@ -126,15 +119,20 @@ public:
     vector_iterator it_;
   };
 
-  using iterator = BaseIterator<DataNode, DataNode*, DataNode&, typename std::vector<DataNode>::iterator>;
-  using const_iterator = BaseIterator<DataNode, const DataNode*, const DataNode&, typename std::vector<DataNode>::const_iterator>;
+  using iterator = BaseIterator<DataNode, DataNode *, DataNode &,
+                                typename std::vector<DataNode>::iterator>;
+  using const_iterator =
+      BaseIterator<DataNode, const DataNode *, const DataNode &,
+                   typename std::vector<DataNode>::const_iterator>;
 
-  iterator begin() {return iterator(GetLeftLeaf().get());}
-  iterator end() {return iterator(nullptr);}
-  const_iterator begin() const {return const_iterator(GetLeftLeaf().get());}
-  const_iterator end() const {return const_iterator(nullptr);}
+  iterator begin() { return iterator(GetLeftLeaf().get()); }
+  iterator end() { return iterator(nullptr); }
+  const_iterator begin() const { return const_iterator(GetLeftLeaf().get()); }
+  const_iterator end() const { return const_iterator(nullptr); }
+
 private:
-  BTree(BlockPointer &&root, size_t size) : root_(std::move(root)), size_(size) {}
+  BTree(BlockPointer &&root, size_t size)
+      : root_(std::move(root)), size_(size) {}
 
   std::optional<std::vector<Node>>
   InsertInNode(NodeBlock *node, const std::string &key, const T &value);
@@ -152,7 +150,7 @@ private:
   DataType *FindInNode(DataBlock *node, const std::string &key);
 
   static std::vector<std::unique_ptr<DataBlock>> GenerateLeafLevel(BTree &lhs,
-                                                            BTree &rhs);
+                                                                   BTree &rhs);
 
   std::unique_ptr<DataBlock> &GetLeftLeaf();
   const std::unique_ptr<DataBlock> &GetLeftLeaf() const;
@@ -194,12 +192,14 @@ void BTree<T, block_size>::Insert(const std::string &key, const T &value) {
   std::visit(lambda, root_);
 }
 
-template <typename T, size_t block_size> bool BTree<T, block_size>::Contains(const std::string &key) {
+template <typename T, size_t block_size>
+bool BTree<T, block_size>::Contains(const std::string &key) {
   DataType *result = Find(key);
   return result && *result;
 }
 
-template <typename T, size_t block_size> void BTree<T, block_size>::Pop(const std::string &key) {
+template <typename T, size_t block_size>
+void BTree<T, block_size>::Pop(const std::string &key) {
   DataType *item = Find(key);
   if (item) {
     item->reset();
@@ -207,7 +207,8 @@ template <typename T, size_t block_size> void BTree<T, block_size>::Pop(const st
   }
 }
 
-template <typename T, size_t block_size> T &BTree<T, block_size>::Get(const std::string &key) {
+template <typename T, size_t block_size>
+T &BTree<T, block_size>::Get(const std::string &key) {
   DataType *item = Find(key);
   if (item) {
     return item->value();
@@ -217,7 +218,8 @@ template <typename T, size_t block_size> T &BTree<T, block_size>::Get(const std:
 }
 
 template <typename T, size_t block_size>
-typename BTree<T, block_size>::DataType *BTree<T, block_size>::Find(const std::string &key) {
+typename BTree<T, block_size>::DataType *
+BTree<T, block_size>::Find(const std::string &key) {
   auto lambda = [this, key](auto &root) -> DataType * {
     return FindInNode(root.get(), key);
   };
@@ -226,8 +228,8 @@ typename BTree<T, block_size>::DataType *BTree<T, block_size>::Find(const std::s
 }
 
 template <typename T, size_t block_size>
-typename BTree<T, block_size>::DataType *BTree<T, block_size>::FindInNode(NodeBlock *node,
-                                                  const std::string &key) {
+typename BTree<T, block_size>::DataType *
+BTree<T, block_size>::FindInNode(NodeBlock *node, const std::string &key) {
   auto iter = std::upper_bound(
       node->nodes.begin(), node->nodes.end(), key,
       [](const std::string &lhs, const Node &rhs) { return lhs < rhs.key; });
@@ -241,8 +243,8 @@ typename BTree<T, block_size>::DataType *BTree<T, block_size>::FindInNode(NodeBl
 }
 
 template <typename T, size_t block_size>
-typename BTree<T, block_size>::DataType *BTree<T, block_size>::FindInNode(DataBlock *node,
-                                                  const std::string &key) {
+typename BTree<T, block_size>::DataType *
+BTree<T, block_size>::FindInNode(DataBlock *node, const std::string &key) {
   auto iter = std::upper_bound(node->nodes.begin(), node->nodes.end(), key,
                                [](const std::string &lhs, const DataNode &rhs) {
                                  return lhs < rhs.key;
@@ -258,9 +260,11 @@ typename BTree<T, block_size>::DataType *BTree<T, block_size>::FindInNode(DataBl
 
 template <typename T, size_t block_size>
 template <class DType>
-std::optional<std::vector<typename BTree<T, block_size>::template BaseNode<DType>>>
-BTree<T, block_size>::InsertMaybeSplit(std::vector<BTree<T, block_size>::BaseNode<DType>> &vec,
-                           const std::string &key, DType &&value) {
+std::optional<
+    std::vector<typename BTree<T, block_size>::template BaseNode<DType>>>
+BTree<T, block_size>::InsertMaybeSplit(
+    std::vector<BTree<T, block_size>::BaseNode<DType>> &vec,
+    const std::string &key, DType &&value) {
   auto iter =
       std::lower_bound(vec.begin(), vec.end(), key,
                        [](const BaseNode<DType> &lhs, const std::string &rhs) {
@@ -287,7 +291,7 @@ BTree<T, block_size>::InsertMaybeSplit(std::vector<BTree<T, block_size>::BaseNod
 template <typename T, size_t block_size>
 std::optional<std::vector<typename BTree<T, block_size>::Node>>
 BTree<T, block_size>::InsertInNode(NodeBlock *node, const std::string &key,
-                       const T &value) {
+                                   const T &value) {
 
   auto iter = std::upper_bound(
       node->nodes.begin(), node->nodes.end(), key,
@@ -323,19 +327,19 @@ BTree<T, block_size>::InsertInNode(NodeBlock *node, const std::string &key,
 template <typename T, size_t block_size>
 std::optional<std::vector<typename BTree<T, block_size>::DataNode>>
 BTree<T, block_size>::InsertInNode(DataBlock *node, const std::string &key,
-                       const T &value) {
+                                   const T &value) {
   size_++;
   return InsertMaybeSplit(node->nodes, key, {value});
 }
 
 template <typename T, size_t block_size>
 void BTree<T, block_size>::PrintLeaves() {
-  BlockPointer* node = &root_;
-  while(!std::holds_alternative<std::unique_ptr<DataBlock>>(*node)) {
+  BlockPointer *node = &root_;
+  while (!std::holds_alternative<std::unique_ptr<DataBlock>>(*node)) {
     node = &(std::get<std::unique_ptr<NodeBlock>>(*node)->nodes[0].value);
   }
-  DataBlock* data_node = std::get<std::unique_ptr<DataBlock>>(*node).get();
-  while(data_node != nullptr) {
+  DataBlock *data_node = std::get<std::unique_ptr<DataBlock>>(*node).get();
+  while (data_node != nullptr) {
     for (auto i : data_node->nodes) {
       if (i.value) {
         std::cout << i.value.value() << ", ";
@@ -347,18 +351,20 @@ void BTree<T, block_size>::PrintLeaves() {
 }
 
 template <typename T, size_t block_size>
-std::unique_ptr<typename BTree<T, block_size>::DataBlock> &BTree<T, block_size>::GetLeftLeaf() {
-  BlockPointer* node = &root_;
-  while(!std::holds_alternative<std::unique_ptr<DataBlock>>(*node)) {
+std::unique_ptr<typename BTree<T, block_size>::DataBlock> &
+BTree<T, block_size>::GetLeftLeaf() {
+  BlockPointer *node = &root_;
+  while (!std::holds_alternative<std::unique_ptr<DataBlock>>(*node)) {
     node = &(std::get<std::unique_ptr<NodeBlock>>(*node)->nodes[0].value);
   }
   return std::get<std::unique_ptr<DataBlock>>(*node);
 }
 
 template <typename T, size_t block_size>
-const std::unique_ptr<typename BTree<T, block_size>::DataBlock> &BTree<T, block_size>::GetLeftLeaf() const {
-  const BlockPointer* node = &root_;
-  while(!std::holds_alternative<std::unique_ptr<DataBlock>>(*node)) {
+const std::unique_ptr<typename BTree<T, block_size>::DataBlock> &
+BTree<T, block_size>::GetLeftLeaf() const {
+  const BlockPointer *node = &root_;
+  while (!std::holds_alternative<std::unique_ptr<DataBlock>>(*node)) {
     node = &(std::get<std::unique_ptr<NodeBlock>>(*node)->nodes[0].value);
   }
   return std::get<std::unique_ptr<DataBlock>>(*node);
@@ -393,7 +399,7 @@ BTree<T, block_size>::GenerateLeafLevel(BTree &lhs, BTree &rhs) {
 
 template <typename T, size_t block_size>
 BTree<T, block_size> BTree<T, block_size>::Merge(BTree &lhs, BTree &rhs) {
-  auto build_level = [] (auto &vec) -> std::vector<std::unique_ptr<NodeBlock>> {
+  auto build_level = [](auto &vec) -> std::vector<std::unique_ptr<NodeBlock>> {
     std::vector<std::unique_ptr<NodeBlock>> result;
     result.emplace_back(std::make_unique<NodeBlock>());
     for (auto &ptr : vec) {
