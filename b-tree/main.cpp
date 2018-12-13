@@ -16,6 +16,12 @@ void test_insert() {
   }
 }
 
+void print_tree(const BTree<int> &tree) {
+  for (auto i : tree) {
+    std::cout << i.key << ", " << i.value.value() << std::endl;
+  }
+}
+
 void test_merge() {
   BTree<int> tree_1;
   BTree<int> tree_2;
@@ -31,6 +37,7 @@ void test_merge() {
   for(auto i : tree_2) {
     assert(tree_3.Contains(i.key));
   }
+  print_tree(tree_3);
 }
 
 int main() {

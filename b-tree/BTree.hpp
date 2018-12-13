@@ -56,43 +56,43 @@ public:
   struct NodeBlock : public BaseBlock<BlockPointer> {};
   using Node = BaseNode<BlockPointer>;
 
-  class Iterator {
+  template<class ValueType, class PointerType, class ReferenceType, class vector_iterator>
+  class BaseIterator {
   public:
     using iterator_category = std::forward_iterator_tag;
     using value_type = DataNode;
     using difference_type = int;
-    using pointer = value_type*;
-    using reference = value_type&;
+    using pointer = PointerType;
+    using reference = ReferenceType;
 
-    Iterator() = default;
-    Iterator(const Iterator &) = default;
+    BaseIterator() = default;
+    BaseIterator(const BaseIterator &) = default;
 
     reference operator*() { return *it_; }
 
     pointer operator->() { return &(*it_); }
 
-    bool operator==(const Iterator &rhs) const {
+    bool operator==(const BaseIterator &rhs) const {
       return (bl_ == rhs.bl_) && ((it_ == rhs.it_) || (bl_ == nullptr));
     }
 
-    bool operator!=(const Iterator &rhs) const {
+    bool operator!=(const BaseIterator &rhs) const {
       return !(*this == rhs);
     }
 
-    Iterator &operator++() {
+    BaseIterator &operator++() {
       Increment();
       return *this;
     }
 
-    Iterator operator++(int) {
-      Iterator copy = *this;
+    BaseIterator operator++(int) {
+      BaseIterator copy = *this;
       ++(*this);
       return copy;
     }
 
   private:
     friend class BTree;
-    using vector_iterator = typename std::vector<DataNode>::iterator;
 
     void Increment() {
       if (bl_ == nullptr) {
@@ -111,11 +111,11 @@ public:
       } while (bl_ != nullptr && !it_->value);
     }
 
-    Iterator(DataBlock *bl, const vector_iterator &it) : bl_(bl), it_(it) {
+    BaseIterator(DataBlock *bl, const vector_iterator &it) : bl_(bl), it_(it) {
       Increment();
     }
 
-    Iterator(DataBlock *bl) : bl_(bl) {
+    BaseIterator(DataBlock *bl) : bl_(bl) {
       if (bl_ != nullptr) {
         it_ = bl_->nodes.begin();
       }
@@ -126,8 +126,13 @@ public:
     vector_iterator it_;
   };
 
-  Iterator begin() {return Iterator(GetLeftLeaf().get());}
-  Iterator end() {return Iterator(nullptr);}
+  using iterator = BaseIterator<DataNode, DataNode*, DataNode&, typename std::vector<DataNode>::iterator>;
+  using const_iterator = BaseIterator<DataNode, const DataNode*, const DataNode&, typename std::vector<DataNode>::const_iterator>;
+
+  iterator begin() {return iterator(GetLeftLeaf().get());}
+  iterator end() {return iterator(nullptr);}
+  const_iterator begin() const {return const_iterator(GetLeftLeaf().get());}
+  const_iterator end() const {return const_iterator(nullptr);}
 private:
   BTree(BlockPointer &&root, size_t size) : root_(std::move(root)), size_(size) {}
 
@@ -150,6 +155,7 @@ private:
                                                             BTree &rhs);
 
   std::unique_ptr<DataBlock> &GetLeftLeaf();
+  const std::unique_ptr<DataBlock> &GetLeftLeaf() const;
 
   size_t size_{0};
   BlockPointer root_;
@@ -343,6 +349,15 @@ void BTree<T, block_size>::PrintLeaves() {
 template <typename T, size_t block_size>
 std::unique_ptr<typename BTree<T, block_size>::DataBlock> &BTree<T, block_size>::GetLeftLeaf() {
   BlockPointer* node = &root_;
+  while(!std::holds_alternative<std::unique_ptr<DataBlock>>(*node)) {
+    node = &(std::get<std::unique_ptr<NodeBlock>>(*node)->nodes[0].value);
+  }
+  return std::get<std::unique_ptr<DataBlock>>(*node);
+}
+
+template <typename T, size_t block_size>
+const std::unique_ptr<typename BTree<T, block_size>::DataBlock> &BTree<T, block_size>::GetLeftLeaf() const {
+  const BlockPointer* node = &root_;
   while(!std::holds_alternative<std::unique_ptr<DataBlock>>(*node)) {
     node = &(std::get<std::unique_ptr<NodeBlock>>(*node)->nodes[0].value);
   }
