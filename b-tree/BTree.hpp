@@ -46,15 +46,15 @@ public:
     BaseBlock *next{nullptr};
   };
 
-  typedef std::optional<T> DataType;
-  typedef BaseBlock<DataType> DataBlock;
-  typedef BaseNode<DataType> DataNode;
+  using DataType = std::optional<T>;
+  using DataBlock = BaseBlock<DataType>;
+  using DataNode = BaseNode<DataType>;
 
   struct NodeBlock;
-  typedef std::variant<std::unique_ptr<DataBlock>, std::unique_ptr<NodeBlock>>
-      BlockPointer;
+  using BlockPointer =
+      std::variant<std::unique_ptr<DataBlock>, std::unique_ptr<NodeBlock>>;
   struct NodeBlock : public BaseBlock<BlockPointer> {};
-  typedef BaseNode<BlockPointer> Node;
+  using Node = BaseNode<BlockPointer>;
 
   class Iterator {
   public:
