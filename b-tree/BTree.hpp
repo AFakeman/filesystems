@@ -1,6 +1,5 @@
 #include <algorithm>
 #include <exception>
-#include <iostream>
 #include <iterator>
 #include <memory>
 #include <optional>
@@ -179,7 +178,6 @@ void BTree<T, block_size>::Insert(const std::string &key, const T &value) {
       return;
     }
 
-    std::cout << "Splitting for key " << key << std::endl;
     // Current root will become the child
     auto new_root = std::make_unique<NodeBlock>();
     std::string split_key = split.value()[0].key;

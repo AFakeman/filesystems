@@ -1,5 +1,8 @@
+#include <algorithm>
 #include <cassert>
 #include <iostream>
+#include <random>
+#include <vector>
 
 #include "BTree.hpp"
 
@@ -7,12 +10,19 @@ const size_t kTestElements = 1024;
 
 void test_insert() {
   BTree<int> tree;
+  std::vector<std::pair<std::string, int>> elements;
   for (size_t i = 0; i < kTestElements; ++i) {
-    tree.Insert(std::to_string(i), i);
+    elements.emplace_back(std::to_string(i), i);
   }
-  for (size_t i = 0; i < kTestElements; ++i) {
-    assert(tree.Contains(std::to_string(i)));
-    assert(tree.Get(std::to_string(i)) == i);
+  std::random_device rd;
+  std::mt19937 g(rd());
+  std::shuffle(elements.begin(), elements.end(), g);
+  for (auto pair : elements) {
+    tree.Insert(pair.first, pair.second);
+  }
+  for (auto pair : elements) {
+    assert(tree.Contains(pair.first));
+    assert(tree.Get(pair.first) == pair.second);
   }
 }
 
